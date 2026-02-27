@@ -1,0 +1,11 @@
+playwright==1.41.0
+requests==2.31.0
+beautifulsoup4==4.12.3
+pandas==2.2.0
+python-dotenv==1.0.1
+gspread==6.0.2
+google-auth==2.27.0
+schedule==1.2.1
+fake-useragent==1.4.0
+playwright-stealth==1.0.6
+lxml==5.1.0

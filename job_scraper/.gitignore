@@ -1,0 +1,21 @@
+# Secrets & credentials
+.env
+service_account.json
+*.json.key
+
+# Generated files
+jobs.db
+scraper.log
+*.log
+
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+dist/
+build/
+
+# Playwright browsers (downloaded at runtime)
+.playwright/
