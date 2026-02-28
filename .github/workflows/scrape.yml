@@ -33,10 +33,16 @@ jobs:
       - name: Install Playwright Chromium
         working-directory: job_scraper
         run: |
-          # Ubuntu 24.04 renamed libasound2 to libasound2t64; install it first
+          # On Ubuntu 24.04, libasound2 was renamed to libasound2t64.
+          # Playwright's --with-deps still requests the old name, so we install
+          # chromium without --with-deps and handle deps separately.
           sudo apt-get update -qq
-          sudo apt-get install -y libasound2t64 || true
-          playwright install chromium --with-deps
+          sudo apt-get install -y --no-install-recommends \
+            libasound2t64 libatk1.0-0 libatk-bridge2.0-0 libcups2 libdrm2 \
+            libgbm1 libgtk-3-0 libnspr4 libnss3 libwayland-client0 libxcomposite1 \
+            libxdamage1 libxfixes3 libxkbcommon0 libxrandr2 xdg-utils \
+            fonts-liberation libglib2.0-0
+          playwright install chromium
 
       # ── Write secrets to .env ───────────────────────────────────────────────
       - name: Write .env file
