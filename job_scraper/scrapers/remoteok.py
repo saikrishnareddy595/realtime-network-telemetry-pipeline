@@ -24,6 +24,10 @@ class RemoteOKScraper:
         "etl",
         "data-pipeline",
         "big-data",
+        "spark",
+        "airflow",
+        "databricks",
+        "snowflake",
     ]
 
     def __init__(self):
@@ -32,7 +36,7 @@ class RemoteOKScraper:
 
     # ------------------------------------------------------------------
     def scrape(self) -> List[Dict[str, Any]]:
-        for tag in self._API_TAGS[:2]:
+        for tag in self._API_TAGS:
             try:
                 self._fetch_tag(tag)
                 time.sleep(random.uniform(config.REQUEST_DELAY_MIN, config.REQUEST_DELAY_MAX))

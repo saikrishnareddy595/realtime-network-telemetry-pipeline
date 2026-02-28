@@ -2,8 +2,8 @@
 main.py — Orchestrator for the automated job scraping system.
 
 Pipeline:
-  1. Run all scrapers (LinkedIn, Indeed, RemoteOK, Adzuna, Glassdoor,
-     ZipRecruiter, Dice)
+  1. Run all scrapers (JobSpy → LinkedIn/Indeed/Glassdoor/ZipRecruiter/Google,
+     Dice, RemoteOK, Arbeitnow, Adzuna)
   2. Deduplicate across sources
   3. Filter (salary, keywords, age)
   4. Score (0–100)
@@ -27,13 +27,11 @@ from typing import List, Dict, Any
 sys.path.insert(0, os.path.dirname(__file__))
 
 import config
-from scrapers.linkedin    import LinkedInScraper
-from scrapers.indeed      import IndeedScraper
-from scrapers.remoteok    import RemoteOKScraper
-from scrapers.adzuna      import AdzunaScraper
-from scrapers.glassdoor   import GlassdoorScraper
-from scrapers.ziprecruiter import ZipRecruiterScraper
-from scrapers.dice        import DiceScraper
+from scrapers.jobspy_scraper import JobSpyScraper
+from scrapers.dice           import DiceScraper
+from scrapers.remoteok       import RemoteOKScraper
+from scrapers.arbeitnow      import ArbeitnowScraper
+from scrapers.adzuna         import AdzunaScraper
 
 from engine.deduplicator  import Deduplicator
 from engine.scorer        import Scorer
@@ -60,14 +58,15 @@ logger = logging.getLogger("main")
 
 
 # ── Scraper registry ──────────────────────────────────────────────────────────
+# JobSpy covers LinkedIn, Indeed, Glassdoor, ZipRecruiter, Google in one call.
+# Dice, RemoteOK, Arbeitnow are separate reliable sources.
+# Adzuna requires API keys (skipped gracefully if not set).
 SCRAPERS = [
-    ("LinkedIn",     LinkedInScraper),
-    ("Indeed",       IndeedScraper),
-    ("RemoteOK",     RemoteOKScraper),
-    ("Adzuna",       AdzunaScraper),
-    ("Glassdoor",    GlassdoorScraper),
-    ("ZipRecruiter", ZipRecruiterScraper),
-    ("Dice",         DiceScraper),
+    ("JobSpy",    JobSpyScraper),
+    ("Dice",      DiceScraper),
+    ("RemoteOK",  RemoteOKScraper),
+    ("Arbeitnow", ArbeitnowScraper),
+    ("Adzuna",    AdzunaScraper),
 ]
 
 
