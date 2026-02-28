@@ -60,7 +60,7 @@ MAX_APPLICANTS = 100
 EASY_APPLY_ONLY = False  # include all application types
 
 # ── Scoring Thresholds ─────────────────────────────────────────────────────────
-ALERT_SCORE_THRESHOLD = 65
+ALERT_SCORE_THRESHOLD = 50
 
 # ── Gmail / Alerts ─────────────────────────────────────────────────────────────
 GMAIL_ADDRESS = os.getenv("GMAIL_ADDRESS", "reddamgufus21188@gmail.com")

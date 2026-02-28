@@ -31,7 +31,7 @@ class DiceScraper:
 
     # ------------------------------------------------------------------
     def scrape(self) -> List[Dict[str, Any]]:
-        for title in config.JOB_TITLES[:2]:
+        for title in config.JOB_TITLES:
             try:
                 self._fetch_title(title)
                 time.sleep(random.uniform(config.REQUEST_DELAY_MIN, config.REQUEST_DELAY_MAX))
@@ -41,7 +41,7 @@ class DiceScraper:
         return self.jobs
 
     # ------------------------------------------------------------------
-    def _fetch_title(self, title: str, pages: int = 3):
+    def _fetch_title(self, title: str, pages: int = 5):
         headers = {
             "User-Agent":    ua.random,
             "Accept":        "application/json, text/plain, */*",
