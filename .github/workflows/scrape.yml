@@ -12,11 +12,11 @@ jobs:
     timeout-minutes: 30
 
     steps:
-      # ── Checkout ────────────────────────────────────────────────────────────────────────
+      # ── Checkout ────────────────────────────────────────────────────────────
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      # ── Python setup ────────────────────────────────────────────────────────────────────────
+      # ── Python setup ────────────────────────────────────────────────────────
       - name: Set up Python 3.11
         uses: actions/setup-python@v5
         with:
@@ -24,17 +24,23 @@ jobs:
           cache: pip
           cache-dependency-path: job_scraper/requirements.txt
 
-      # ── Install Python dependencies ─────────────────────────────────────────────────────────────────────────
+      # ── Install Python dependencies ─────────────────────────────────────────
       - name: Install dependencies
         working-directory: job_scraper
         run: pip install -r requirements.txt
 
-      # ── Install Playwright browsers ─────────────────────────────────────────────────────────────────────────
+      # ── Install Playwright browsers ─────────────────────────────────────────
       - name: Install Playwright Chromium
         working-directory: job_scraper
-        run: playwright install chromium --with-deps
+        run: |
+          # Fix for Ubuntu 24.04 (noble): libasound2 renamed to libasound2t64
+          sudo apt-get update
+          sudo apt-get install -y libasound2t64 || true
+          # Create compatibility symlink if needed
+          sudo ln -sf /usr/lib/x86_64-linux-gnu/libasound.so.2 /usr/lib/x86_64-linux-gnu/libasound.so.2.0.0 || true
+          playwright install chromium --with-deps
 
-      # ── Write secrets to .env ─────────────────────────────────────────────────────────────────────────
+      # ── Write secrets to .env ───────────────────────────────────────────────
       - name: Write .env file
         working-directory: job_scraper
         env:
@@ -52,7 +58,7 @@ jobs:
           JOOBLE_API_KEY=$JOOBLE_API_KEY
           EOF
 
-      # ── Write Google service account JSON (if secret is set) ────────────────────────────────────────────────────────────────────────
+      # ── Write Google service account JSON (if secret is set) ────────────────
       - name: Write Google service account JSON
         working-directory: job_scraper
         env:
@@ -65,12 +71,12 @@ jobs:
             echo "GOOGLE_SERVICE_ACCOUNT_JSON secret not set"
           fi
 
-      # ── Run the scraper ─────────────────────────────────────────────────────────────────────────
+      # ── Run the scraper ─────────────────────────────────────────────────────
       - name: Run job scraper
         working-directory: job_scraper
         run: python main.py
 
-      # ── Upload SQLite DB as artifact ─────────────────────────────────────────────────────────────────────────
+      # ── Upload SQLite DB as artifact ─────────────────────────────────────────
       - name: Upload database artifact
         uses: actions/upload-artifact@v4
         if: always()
@@ -79,7 +85,7 @@ jobs:
           path: job_scraper/jobs.db
           retention-days: 7
 
-      # ── Upload log as artifact ─────────────────────────────────────────────────────────────────────────
+      # ── Upload log as artifact ───────────────────────────────────────────────
       - name: Upload scraper log
         uses: actions/upload-artifact@v4
         if: always()
