@@ -27,9 +27,11 @@ _SITE_LABEL = {
 
 
 class JobSpyScraper:
+    """One instance per search title — designed to run as a parallel task."""
     SOURCE = "JobSpy"
 
-    def __init__(self):
+    def __init__(self, title: str):
+        self.title = title
         self.jobs: List[Dict[str, Any]] = []
 
     # ------------------------------------------------------------------
@@ -37,22 +39,16 @@ class JobSpyScraper:
         try:
             from jobspy import scrape_jobs
         except ImportError:
-            logger.error(
-                "python-jobspy not installed. Add 'python-jobspy' to requirements.txt."
-            )
+            logger.error("python-jobspy not installed.")
             return []
 
         seen_urls: set = set()
+        try:
+            batch = self._scrape_title(scrape_jobs, self.title, seen_urls)
+            self.jobs.extend(batch)
+        except Exception as exc:
+            logger.error("JobSpy '%s' failed: %s", self.title, exc, exc_info=True)
 
-        for title in config.JOB_TITLES:
-            try:
-                batch = self._scrape_title(scrape_jobs, title, seen_urls)
-                self.jobs.extend(batch)
-                time.sleep(random.uniform(config.REQUEST_DELAY_MIN, config.REQUEST_DELAY_MAX))
-            except Exception as exc:
-                logger.error("JobSpy '%s' failed: %s", title, exc, exc_info=True)
-
-        logger.info("JobSpy: collected %d jobs across all sites", len(self.jobs))
         return self.jobs
 
     # ------------------------------------------------------------------
