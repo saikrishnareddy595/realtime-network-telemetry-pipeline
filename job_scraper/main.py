@@ -60,16 +60,19 @@ from scrapers.weworkremotely import WeWorkRemotelyScraper
 from scrapers.usajobs        import USAJobsScraper
 from scrapers.staffing_scrapers import BeaconHillScraper
 from scrapers.linkedin_posts import LinkedInPostsScraper
+from scrapers.hackernews     import HackerNewsHiringScraper
 
 from engine.deduplicator import Deduplicator
 from engine.scorer       import Scorer
 from engine.filter       import Filter
 from engine.llm          import llm_score_batch
+from engine.resume       import parse_resume, skill_gap_analysis
 
 from storage.db              import Database
 from storage.supabase_client import SupabaseClient
 from output.sheets           import SheetsSync
 from output.notifier         import Notifier
+from output.telegram_bot     import TelegramBot
 
 
 def _run_scraper(name: str, scraper_instance) -> Tuple[str, List[Dict[str, Any]]]:
@@ -122,6 +125,10 @@ def _build_tasks() -> List[Tuple[str, object]]:
         # Staffing — BeaconHill was the only portal returning results
         ("BeaconHill",     BeaconHillScraper()),
     ]
+
+    # ── Phase 2: Hacker News Who’s Hiring ───────────────────────────────────
+    if config.ENABLE_HN_SCRAPER:
+        tasks.append(("HackerNews", HackerNewsHiringScraper()))
 
     return tasks
 
@@ -199,6 +206,44 @@ def run() -> None:
 
     db.close()
 
+    # ── Phase 2 Step 10: Telegram — Job Alerts ───────────────────────────────
+    telegram = TelegramBot()
+    tg_job_count  = 0
+    tg_post_count = 0
+
+    if config.ENABLE_TELEGRAM_JOBS:
+        new_high_score = [j for j in high_score if not j.get("notified", False)]
+        tg_job_count   = telegram.send_job_alerts(new_high_score)
+        logger.info("Telegram: %d job alerts sent", tg_job_count)
+
+    # ── Phase 2 Step 11: Telegram — LinkedIn Recruiter Posts (with emails) ────
+    if config.ENABLE_TELEGRAM_POSTS and posts:
+        posts_to_send = [
+            p for p in posts
+            if p.get("score", 0) >= config.TELEGRAM_MIN_POST_SCORE
+        ]
+        tg_post_count = telegram.send_recruiter_posts(posts_to_send)
+        logger.info("Telegram: %d LinkedIn recruiter posts sent", tg_post_count)
+
+    # ── Phase 2 Step 12: Run summary digest to Telegram ────────────────────
+    telegram.send_digest_summary(
+        total_raw=len(all_jobs),
+        total_after_filter=len(filtered_jobs),
+        new_in_db=new_count,
+        top_jobs=scored_jobs[:5],
+    )
+
+    # ── Phase 2 Step 13: Skill Gap Analysis ───────────────────────────────
+    gap_report: Dict[str, Any] = {}
+    if config.ENABLE_SKILL_GAP:
+        resume = parse_resume()
+        gap_report = skill_gap_analysis(scored_jobs, resume)
+        logger.info(
+            "Skill Gap: top demands=%s | missing=%s",
+            [s for s, _ in gap_report.get("top_demanded", [])[:5]],
+            gap_report.get("you_are_missing", [])[:5],
+        )
+
     # ── Summary ───────────────────────────────────────────────────────────────
     elapsed = time.time() - t0
     print(f"\n{'='*65}")
@@ -215,6 +260,8 @@ def run() -> None:
     print(f"  {'New in SQLite':<22} {new_count:>6}")
     print(f"  {'Sheets rows':<22} {rows_written:>6}")
     print(f"  {'LinkedIn Posts':<22} {len(posts):>6}")
+    print(f"  {'Telegram Jobs':<22} {tg_job_count:>6}")
+    print(f"  {'Telegram Posts':<22} {tg_post_count:>6}")
     print()
     print(f"  TOP 10 JOBS:")
     print(f"  {'Sc':>3} {'LLM':>3}  {'Title':<35} {'Company':<20} {'Type':<10}")
@@ -230,6 +277,17 @@ def run() -> None:
     print(f"{'='*65}")
     print(f"  Completed in {elapsed:.1f}s")
     print(f"{'='*65}\n")
+
+    # Print skill gap summary if available
+    if gap_report and gap_report.get("you_are_missing"):
+        print(f"\n{'='*65}")
+        print("  SKILL GAP ANALYSIS")
+        print(f"{'='*65}")
+        print(f"  Top demanded: {', '.join(s for s, _ in gap_report.get('top_demanded', [])[:8])}")
+        print(f"  You have:     {', '.join(gap_report.get('you_have', [])[:8])}")
+        gap_skills = gap_report.get('you_are_missing', [])
+        print(f"  Missing:      {', '.join(gap_skills[:8])}")
+        print(f"{'='*65}\n")
 
 
 if __name__ == "__main__":

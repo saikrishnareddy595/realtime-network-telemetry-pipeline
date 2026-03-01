@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, MouseEvent } from "react";
 import { Job } from "@/lib/types";
 
 interface Props {
@@ -36,9 +36,21 @@ export default function JobCard({ job, onApplied, onSaved }: Props) {
   const [expanded, setExpanded] = useState(false);
   const [applying, setApplying] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [feedback, setFeedback] = useState<"liked" | "disliked" | null>(null);
 
-  const handleApply = async (e: React.MouseEvent) => {
+  const handleFeedback = async (liked: boolean, e: MouseEvent) => {
     e.stopPropagation();
+    setFeedback(liked ? "liked" : "disliked");
+    await fetch("/api/feedback", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ id: job.id, table: "jobs", liked }),
+    });
+  };
+
+  const handleApply = async (e: MouseEvent) => {
+    e.stopPropagation();
+    if (applying) return;
     setApplying(true);
     try {
       await fetch("/api/apply", {
@@ -52,8 +64,9 @@ export default function JobCard({ job, onApplied, onSaved }: Props) {
     }
   };
 
-  const handleSave = async (e: React.MouseEvent) => {
+  const handleSave = async (e: MouseEvent) => {
     e.stopPropagation();
+    if (saving) return;
     setSaving(true);
     try {
       await fetch("/api/apply", {
@@ -67,21 +80,22 @@ export default function JobCard({ job, onApplied, onSaved }: Props) {
     }
   };
 
-  const typeLabel = job.job_type.replace(/_/g, "-");
-  const roleLabel = job.role_category.replace(/_/g, " ");
+  const typeLabel = (job.job_type || "full_time").replace(/_/g, "-");
+  const roleLabel = (job.role_category || "other").replace(/_/g, " ");
+  const postedDate = job.posted_date ? new Date(job.posted_date) : new Date();
   const postedDays = Math.floor(
-    (Date.now() - new Date(job.posted_date).getTime()) / 86400000
+    (Date.now() - (isNaN(postedDate.getTime()) ? Date.now() : postedDate.getTime())) / 86400000
   );
+
 
   return (
     <div
-      className={`bg-slate-800 border rounded-xl p-4 transition-all cursor-pointer hover:border-slate-500 ${
-        job.applied
-          ? "border-blue-700 opacity-75"
-          : job.saved
+      className={`bg-slate-800 border rounded-xl p-4 transition-all cursor-pointer hover:border-slate-500 ${job.applied
+        ? "border-blue-700 opacity-75"
+        : job.saved
           ? "border-pink-700"
           : "border-slate-700"
-      }`}
+        }`}
       onClick={() => setExpanded(!expanded)}
     >
       {/* Header row */}
@@ -109,26 +123,45 @@ export default function JobCard({ job, onApplied, onSaved }: Props) {
 
         {/* Action buttons */}
         <div className="flex items-center gap-2 flex-shrink-0">
+          {/* Feedback buttons */}
+          <button
+            onClick={(e) => handleFeedback(true, e)}
+            title="Great fit"
+            className={`p-1.5 rounded-lg text-sm transition-colors ${feedback === "liked"
+              ? "bg-green-600 text-white"
+              : "bg-slate-700 text-slate-400 hover:text-green-400"
+              }`}
+          >
+            👍
+          </button>
+          <button
+            onClick={(e) => handleFeedback(false, e)}
+            title="Not for me"
+            className={`p-1.5 rounded-lg text-sm transition-colors ${feedback === "disliked"
+              ? "bg-red-700 text-white"
+              : "bg-slate-700 text-slate-400 hover:text-red-400"
+              }`}
+          >
+            👎
+          </button>
           <button
             onClick={handleSave}
             disabled={saving}
             title={job.saved ? "Unsave" : "Save"}
-            className={`p-1.5 rounded-lg text-sm transition-colors ${
-              job.saved
-                ? "bg-pink-600 text-white"
-                : "bg-slate-700 text-slate-400 hover:text-pink-400"
-            }`}
+            className={`p-1.5 rounded-lg text-sm transition-colors ${job.saved
+              ? "bg-pink-600 text-white"
+              : "bg-slate-700 text-slate-400 hover:text-pink-400"
+              }`}
           >
             {job.saved ? "★" : "☆"}
           </button>
           <button
             onClick={handleApply}
             disabled={applying}
-            className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${
-              job.applied
-                ? "bg-blue-800 text-blue-300"
-                : "bg-blue-600 hover:bg-blue-500 text-white"
-            }`}
+            className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${job.applied
+              ? "bg-blue-800 text-blue-300"
+              : "bg-blue-600 hover:bg-blue-500 text-white"
+              }`}
           >
             {job.applied ? "Applied ✓" : "Mark Applied"}
           </button>
@@ -136,27 +169,27 @@ export default function JobCard({ job, onApplied, onSaved }: Props) {
             href={job.url}
             target="_blank"
             rel="noopener noreferrer"
-            onClick={(e) => e.stopPropagation()}
+            onClick={(e: MouseEvent) => e.stopPropagation()}
             className="px-3 py-1.5 rounded-lg text-xs font-medium bg-slate-700 hover:bg-slate-600 text-slate-200 transition-colors"
           >
             View →
           </a>
+
         </div>
       </div>
+
 
       {/* Tags row */}
       <div className="flex flex-wrap gap-1.5 mt-3">
         <span
-          className={`text-xs px-2 py-0.5 rounded-full font-medium ${
-            TYPE_COLORS[job.job_type] || "bg-slate-700 text-slate-300"
-          }`}
+          className={`text-xs px-2 py-0.5 rounded-full font-medium ${TYPE_COLORS[job.job_type] || "bg-slate-700 text-slate-300"
+            }`}
         >
           {typeLabel}
         </span>
         <span
-          className={`text-xs px-2 py-0.5 rounded-full font-medium ${
-            ROLE_COLORS[job.role_category] || "bg-slate-700 text-slate-300"
-          }`}
+          className={`text-xs px-2 py-0.5 rounded-full font-medium ${ROLE_COLORS[job.role_category] || "bg-slate-700 text-slate-300"
+            }`}
         >
           {roleLabel}
         </span>
@@ -184,17 +217,16 @@ export default function JobCard({ job, onApplied, onSaved }: Props) {
       </div>
 
       {/* LLM score row */}
-      {job.llm_score !== null && (
+      {typeof job.llm_score === "number" && (
         <div className="mt-2 flex items-center gap-2">
           <span className="text-xs text-slate-500">AI Score:</span>
           <span
-            className={`text-xs font-bold ${
-              job.llm_score >= 80
-                ? "text-green-400"
-                : job.llm_score >= 60
+            className={`text-xs font-bold ${job.llm_score >= 80
+              ? "text-green-400"
+              : job.llm_score >= 60
                 ? "text-yellow-400"
                 : "text-slate-400"
-            }`}
+              }`}
           >
             {job.llm_score}
           </span>
@@ -206,10 +238,11 @@ export default function JobCard({ job, onApplied, onSaved }: Props) {
         </div>
       )}
 
+
       {/* Skills */}
       {job.skills && job.skills.length > 0 && (
         <div className="flex flex-wrap gap-1 mt-2">
-          {job.skills.slice(0, 6).map((skill) => (
+          {job.skills.slice(0, 6).map((skill: string) => (
             <span
               key={skill}
               className="text-xs bg-slate-700 text-slate-300 px-2 py-0.5 rounded"
@@ -219,6 +252,7 @@ export default function JobCard({ job, onApplied, onSaved }: Props) {
           ))}
         </div>
       )}
+
 
       {/* Expanded details */}
       {expanded && (

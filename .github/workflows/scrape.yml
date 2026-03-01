@@ -2,8 +2,8 @@ name: Job Scraper
 
 on:
   schedule:
-    # Run every 6 hours
-    - cron: "0 */6 * * *"
+    # Run every 2 hours (Phase 2: was every 6 hours)
+    - cron: "0 */2 * * *"
   workflow_dispatch:  # allow manual trigger from GitHub UI
 
 jobs:
@@ -61,6 +61,8 @@ jobs:
           USAJOBS_API_KEY:          ${{ secrets.USAJOBS_API_KEY }}
           ALERT_EMAIL_TO:           ${{ secrets.ALERT_EMAIL_TO }}
           GOOGLE_SPREADSHEET_ID:    ${{ secrets.GOOGLE_SPREADSHEET_ID }}
+          TELEGRAM_BOT_TOKEN:       ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID:         ${{ secrets.TELEGRAM_CHAT_ID }}
         run: |
           cat > .env <<EOF
           GMAIL_ADDRESS=$GMAIL_ADDRESS
@@ -76,6 +78,8 @@ jobs:
           USAJOBS_API_KEY=$USAJOBS_API_KEY
           ALERT_EMAIL_TO=$ALERT_EMAIL_TO
           GOOGLE_SPREADSHEET_ID=$GOOGLE_SPREADSHEET_ID
+          TELEGRAM_BOT_TOKEN=$TELEGRAM_BOT_TOKEN
+          TELEGRAM_CHAT_ID=$TELEGRAM_CHAT_ID
           EOF
 
       # ── Write Google service account JSON (if secret is set) ────────────────

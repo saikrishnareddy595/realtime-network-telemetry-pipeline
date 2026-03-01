@@ -69,6 +69,17 @@ CREATE INDEX IF NOT EXISTS idx_jobs_saved       ON jobs(saved);
 CREATE INDEX IF NOT EXISTS idx_jobs_notified    ON jobs(notified);
 CREATE INDEX IF NOT EXISTS idx_posts_posted     ON linkedin_posts(posted_date DESC);
 CREATE INDEX IF NOT EXISTS idx_posts_role       ON linkedin_posts(role_category);
+
+-- Phase 2: user feedback for scorer re-training
+CREATE TABLE IF NOT EXISTS job_feedback (
+    id           BIGSERIAL PRIMARY KEY,
+    job_id       BIGINT NOT NULL,
+    source_table TEXT NOT NULL DEFAULT 'jobs',
+    liked        BOOLEAN NOT NULL,
+    rated_at     TIMESTAMPTZ DEFAULT NOW(),
+    UNIQUE(job_id, source_table)
+);
+CREATE INDEX IF NOT EXISTS idx_feedback_job ON job_feedback(job_id);
 """
 
 
@@ -143,7 +154,6 @@ class SupabaseClient:
             "role_category": j.get("role_category", "data_engineer"),
             "skills":       j.get("skills", []),
             "scraped_at":   datetime.now(timezone.utc).isoformat(),
-            "notified":     False,
         }
 
     @staticmethod
@@ -168,3 +178,4 @@ class SupabaseClient:
             "score":               p.get("score", 0),
             "role_category":       p.get("role_category", "data_engineer"),
         }
+
