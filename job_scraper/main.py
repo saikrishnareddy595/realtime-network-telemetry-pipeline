@@ -121,8 +121,8 @@ def _build_tasks() -> List[Tuple[str, object]]:
         ("Adzuna",         AdzunaScraper()),
         ("WeWorkRemotely", WeWorkRemotelyScraper()),
         ("Jooble",         JoobleScraper()),
-        ("USAJobs",        USAJobsScraper()),
         # Staffing — BeaconHill was the only portal returning results
+
         ("BeaconHill",     BeaconHillScraper()),
     ]
 

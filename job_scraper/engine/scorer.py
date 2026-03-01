@@ -79,17 +79,22 @@ _INCLUDE_LOWER = [kw.lower() for kw in config.INCLUDE_KEYWORDS]
 
 class Scorer:
     def score(self, job: Dict[str, Any]) -> int:
+        def _to_str(val: Any) -> str:
+            if val is None: return ""
+            if isinstance(val, list): return ", ".join(str(v) for v in val)
+            return str(val)
+
         points = 0
 
         # ── 1. Title relevance ────────────────────────────────────────
-        title_lower = (job.get("title") or "").lower()
+        title_lower = _to_str(job.get("title")).lower()
         if any(kw in title_lower for kw in _CORE_TITLE_KW):
             points += 20
         elif any(kw in title_lower for kw in _TECH_TITLE_KW):
             points += 10
 
         # ── 2. Description keyword richness ───────────────────────────
-        desc_lower = (job.get("description") or "").lower()
+        desc_lower = _to_str(job.get("description")).lower()
         kw_hits = sum(1 for kw in _INCLUDE_LOWER if kw in desc_lower)
         points += min(kw_hits * 3, 15)
 
@@ -134,9 +139,10 @@ class Scorer:
             points += 15
 
         # ── 6. Remote / Hybrid ────────────────────────────────────────
-        location_lower = (job.get("location") or "").lower()
+        location_lower = _to_str(job.get("location")).lower()
         if "remote" in location_lower or "hybrid" in location_lower:
             points += 10
+
 
         # ── 7. Salary bonus ───────────────────────────────────────────
         salary = job.get("salary")
@@ -151,7 +157,7 @@ class Scorer:
                 pass
 
         # ── 8. Dream company ──────────────────────────────────────────
-        company_lower = (job.get("company") or "").lower()
+        company_lower = _to_str(job.get("company")).lower()
         if any(dream in company_lower for dream in _DREAM_LOWER):
             points += 15
 
