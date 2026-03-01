@@ -154,12 +154,33 @@ class LinkedInPostsScraper:
         if post_url and not post_url.startswith("http"):
             post_url = "https://www.linkedin.com" + post_url
 
-        # Approximate posted date (LinkedIn uses relative times)
+        # Approximate posted date (LinkedIn uses relative times जैसे "1h", "2d", "1w")
         time_text_el = card.query_selector(
             "span.feed-shared-actor__sub-description"
         )
-        posted_date = datetime.now(timezone.utc)  # fallback; LI posts are fresh
+        time_text = time_text_el.inner_text().strip() if time_text_el else ""
+        
+        # Simple relative time filter for 48h (LinkedIn formats: "1h", "23h", "1d", "2d")
+        # Rejects "3d", "5d", "1w", "1mo", "1y" etc.
+        is_fresh = True
+        if time_text:
+            # Look for patterns like "3d", "1w", "4mo", "1yr"
+            # LinkedIn often adds "• Edited" or similar, so we just check for the number + unit
+            match = re.search(r"(\d+)([dwmy])", time_text)
+            if match:
+                val, unit = int(match.group(1)), match.group(2)
+                if unit == 'd' and val > 2:
+                    is_fresh = False
+                elif unit in ('w', 'm', 'y'):
+                    is_fresh = False
+            elif "month" in time_text.lower() or "week" in time_text.lower() or "year" in time_text.lower():
+                is_fresh = False
 
+        if not is_fresh:
+            return {}
+
+        posted_date = datetime.now(timezone.utc)  # fallback; LI posts are fresh
+        
         # Extract contact email from post text
         emails = re.findall(r"[a-zA-Z0-9_.+-]+@[a-zA-Z0-9-]+\.[a-zA-Z0-9-.]+", post_text)
         contact_email = emails[0] if emails else ""
@@ -173,6 +194,7 @@ class LinkedInPostsScraper:
         is_job = llm_data.get("is_job_posting", self._looks_like_job(post_text))
         if not is_job:
             return {}
+
 
         return {
             "post_text":          post_text[:2000],

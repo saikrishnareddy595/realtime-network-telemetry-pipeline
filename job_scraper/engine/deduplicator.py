@@ -89,9 +89,17 @@ class Deduplicator:
     # ── Key ───────────────────────────────────────────────────────────────────
     @staticmethod
     def _make_key(job: Dict[str, Any]) -> str:
+        def _to_str(val: Any) -> str:
+            if val is None:
+                return ""
+            if isinstance(val, list):
+                return ", ".join(str(v) for v in val)
+            return str(val)
+
         raw = "|".join([
-            (job.get("title")    or "").lower().strip(),
-            (job.get("company")  or "").lower().strip(),
-            (job.get("location") or "").lower().strip(),
+            _to_str(job.get("title")).lower().strip(),
+            _to_str(job.get("company")).lower().strip(),
+            _to_str(job.get("location")).lower().strip(),
         ])
         return hashlib.md5(raw.encode()).hexdigest()
+

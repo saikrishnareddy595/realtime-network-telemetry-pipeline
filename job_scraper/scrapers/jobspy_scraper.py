@@ -127,18 +127,26 @@ class JobSpyScraper:
             except Exception:
                 return False
 
-        job_title = safe_str(row.get("title"))
+        def clean_val(val: Any) -> str:
+            if val is None:
+                return ""
+            if isinstance(val, list):
+                return ", ".join(str(v) for v in val)
+            return safe_str(val)
+
+        job_title = clean_val(row.get("title"))
         if not job_title:
             return {}
 
         site     = safe_str(row.get("site")).lower()
         source   = _SITE_LABEL.get(site, site.title() if site else self.SOURCE)
-        company  = safe_str(row.get("company"))
-        location = safe_str(row.get("location"))
+        company  = clean_val(row.get("company"))
+        location = clean_val(row.get("location"))
         url      = safe_str(row.get("job_url"))
         desc     = safe_str(row.get("description"))[:500]
 
         # ── Salary ────────────────────────────────────────────────────
+
         salary   = None
         interval = safe_str(row.get("interval")).lower()
         min_amt  = row.get("min_amount")
