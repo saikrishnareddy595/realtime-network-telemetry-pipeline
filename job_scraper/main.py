@@ -2,7 +2,9 @@
 main.py — Orchestrator for the automated job scraping system.
 
 Pipeline:
-  1. Run all 50 scrapers in parallel (ThreadPoolExecutor)
+  1. Run all scrapers in parallel (ThreadPoolExecutor)
+     - JobSpy: one task per title (LinkedIn/Indeed/Google per title)
+     - All other scrapers: one task each
   2. Deduplicate (exact hash + NVIDIA NIM semantic embeddings)
   3. Filter  (salary, keywords, age, applicants, job_type)
   4. Score   (multi-factor heuristic)
@@ -45,34 +47,19 @@ logging.basicConfig(
 logger = logging.getLogger("main")
 
 # ── Scraper imports ────────────────────────────────────────────────────────────
-from scrapers.jobspy_scraper   import JobSpyScraper
-from scrapers.dice             import DiceScraper
-from scrapers.remoteok         import RemoteOKScraper
-from scrapers.arbeitnow        import ArbeitnowScraper
-from scrapers.adzuna           import AdzunaScraper
-from scrapers.remotive         import RemotiveScraper
-from scrapers.himalayas        import HimalayasScraper
-from scrapers.jobicy           import JobicyScraper
-from scrapers.themuse          import TheMuseScraper
-from scrapers.usajobs          import USAJobsScraper
-from scrapers.jooble           import JoobleScraper
-from scrapers.workingnomads    import WorkingNomadsScraper
-from scrapers.careerbuilder    import CareerBuilderScraper
-from scrapers.monster          import MonsterScraper
-from scrapers.builtin          import BuiltInScraper
-from scrapers.techfetch        import TechFetchScraper
-from scrapers.clearancejobs    import ClearanceJobsScraper
-from scrapers.wellfound        import WellfoundScraper
-from scrapers.weworkremotely   import WeWorkRemotelyScraper
-from scrapers.staffing_scrapers import (
-    TEKsystemsScraper, KforceScraper, RobertHalfScraper, RandstadScraper,
-    InsightGlobalScraper, ApexSystemsScraper, MotionRecruitmentScraper,
-    CyberCodersScraper, Akkodiscraper, VoltScraper, HarveyNashScraper,
-    HaysTechScraper, LanceSoftScraper, StaffmarkScraper, BeaconHillScraper,
-    CognizantScraper, InfosysScraper, SAICScraper, LeidosScraper,
-    BoozAllenScraper, AccentureScraper, CapgeminiScraper, IBMScraper,
-)
-from scrapers.linkedin_posts   import LinkedInPostsScraper
+from scrapers.jobspy_scraper import JobSpyScraper
+from scrapers.dice           import DiceScraper
+from scrapers.arbeitnow      import ArbeitnowScraper
+from scrapers.adzuna         import AdzunaScraper
+from scrapers.remotive       import RemotiveScraper
+from scrapers.himalayas      import HimalayasScraper
+from scrapers.jobicy         import JobicyScraper
+from scrapers.jooble         import JoobleScraper
+from scrapers.workingnomads  import WorkingNomadsScraper
+from scrapers.weworkremotely import WeWorkRemotelyScraper
+from scrapers.usajobs        import USAJobsScraper
+from scrapers.staffing_scrapers import BeaconHillScraper
+from scrapers.linkedin_posts import LinkedInPostsScraper
 
 from engine.deduplicator import Deduplicator
 from engine.scorer       import Scorer
@@ -84,65 +71,59 @@ from storage.supabase_client import SupabaseClient
 from output.sheets           import SheetsSync
 from output.notifier         import Notifier
 
-# ── Scraper registry ───────────────────────────────────────────────────────────
-JOB_SCRAPERS: List[Tuple[str, type]] = [
-    # Tier 1 — Free APIs
-    ("JobSpy",          JobSpyScraper),
-    ("Dice",            DiceScraper),
-    ("RemoteOK",        RemoteOKScraper),
-    ("Arbeitnow",       ArbeitnowScraper),
-    ("Remotive",        RemotiveScraper),
-    ("Himalayas",       HimalayasScraper),
-    ("Jobicy",          JobicyScraper),
-    ("TheMuse",         TheMuseScraper),
-    ("USAJobs",         USAJobsScraper),
-    ("Jooble",          JoobleScraper),
-    ("WorkingNomads",   WorkingNomadsScraper),
-    ("Adzuna",          AdzunaScraper),
-    # Tier 2 — HTML scrapers
-    ("CareerBuilder",   CareerBuilderScraper),
-    ("Monster",         MonsterScraper),
-    ("BuiltIn",         BuiltInScraper),
-    ("TechFetch",       TechFetchScraper),
-    ("ClearanceJobs",   ClearanceJobsScraper),
-    ("Wellfound",       WellfoundScraper),
-    ("WeWorkRemotely",  WeWorkRemotelyScraper),
-    # Tier 3 — Staffing / Prime Vendor
-    ("TEKsystems",      TEKsystemsScraper),
-    ("Kforce",          KforceScraper),
-    ("RobertHalf",      RobertHalfScraper),
-    ("Randstad",        RandstadScraper),
-    ("InsightGlobal",   InsightGlobalScraper),
-    ("ApexSystems",     ApexSystemsScraper),
-    ("MotionRecruit",   MotionRecruitmentScraper),
-    ("CyberCoders",     CyberCodersScraper),
-    ("Akkodis",         Akkodiscraper),
-    ("Volt",            VoltScraper),
-    ("HarveyNash",      HarveyNashScraper),
-    ("HaysTech",        HaysTechScraper),
-    ("LanceSoft",       LanceSoftScraper),
-    ("Staffmark",       StaffmarkScraper),
-    ("BeaconHill",      BeaconHillScraper),
-    # Tier 4 — Consulting / Federal
-    ("Cognizant",       CognizantScraper),
-    ("Infosys",         InfosysScraper),
-    ("SAIC",            SAICScraper),
-    ("Leidos",          LeidosScraper),
-    ("BoozAllen",       BoozAllenScraper),
-    ("Accenture",       AccentureScraper),
-    ("Capgemini",       CapgeminiScraper),
-    ("IBM",             IBMScraper),
-]
 
-
-def _run_scraper(name: str, ScraperClass: type) -> Tuple[str, List[Dict[str, Any]]]:
+def _run_scraper(name: str, scraper_instance) -> Tuple[str, List[Dict[str, Any]]]:
+    """Thread-safe wrapper: runs scraper.scrape() and returns (name, jobs)."""
     try:
-        jobs = ScraperClass().scrape()
-        logger.info("  ✓ %-20s %d jobs", name, len(jobs))
+        jobs = scraper_instance.scrape()
+        logger.info("  ✓ %-25s %d jobs", name, len(jobs))
         return name, jobs
     except Exception as exc:
-        logger.error("  ✗ %-20s FAILED: %s", name, exc)
+        logger.error("  ✗ %-25s FAILED: %s", name, exc)
         return name, []
+
+
+def _build_tasks() -> List[Tuple[str, object]]:
+    """
+    Build the full list of (label, scraper_instance) tasks.
+
+    JobSpy is split into one task per title so each title runs as an
+    independent parallel job — previously they ran sequentially inside
+    a single task, causing the 30-minute timeout.
+
+    Scrapers removed because they consistently returned 0 results in CI
+    (404 / 403 / DNS errors / bot protection):
+      CareerBuilder, BuiltIn, TechFetch, ClearanceJobs, Wellfound,
+      Monster, RemoteOK, TheMuse, TEKsystems, Kforce, RobertHalf,
+      Randstad, InsightGlobal, ApexSystems, MotionRecruitment,
+      CyberCoders, Akkodis, Volt, HarveyNash, HaysTech, LanceSoft,
+      Staffmark, Cognizant, Infosys, SAIC, Leidos, BoozAllen,
+      Accenture, Capgemini, IBM
+    """
+    tasks: List[Tuple[str, object]] = []
+
+    # ── JobSpy — one task per title (runs in parallel) ─────────────────────────
+    for title in config.JOBSPY_TITLES:
+        label = f"JobSpy:{title}"
+        tasks.append((label, JobSpyScraper(title)))
+
+    # ── Reliable free-API scrapers ─────────────────────────────────────────────
+    tasks += [
+        ("Dice",           DiceScraper()),
+        ("Arbeitnow",      ArbeitnowScraper()),
+        ("Remotive",       RemotiveScraper()),
+        ("Himalayas",      HimalayasScraper()),
+        ("Jobicy",         JobicyScraper()),
+        ("WorkingNomads",  WorkingNomadsScraper()),
+        ("Adzuna",         AdzunaScraper()),
+        ("WeWorkRemotely", WeWorkRemotelyScraper()),
+        ("Jooble",         JoobleScraper()),
+        ("USAJobs",        USAJobsScraper()),
+        # Staffing — BeaconHill was the only portal returning results
+        ("BeaconHill",     BeaconHillScraper()),
+    ]
+
+    return tasks
 
 
 def run() -> None:
@@ -155,18 +136,21 @@ def run() -> None:
     supabase = SupabaseClient()
 
     # ── Step 1: Parallel scraping ──────────────────────────────────────────────
+    tasks = _build_tasks()
     all_jobs: List[Dict[str, Any]] = []
     per_source: Dict[str, int]     = defaultdict(int)
 
-    logger.info("Running %d scrapers with %d workers …", len(JOB_SCRAPERS), config.MAX_WORKERS)
+    logger.info("Running %d tasks with %d workers …", len(tasks), config.MAX_WORKERS)
     with ThreadPoolExecutor(max_workers=config.MAX_WORKERS) as pool:
         futures = {
-            pool.submit(_run_scraper, name, cls): name
-            for name, cls in JOB_SCRAPERS
+            pool.submit(_run_scraper, name, inst): name
+            for name, inst in tasks
         }
         for fut in as_completed(futures):
             name, jobs = fut.result()
-            per_source[name] = len(jobs)
+            # Group all JobSpy sub-tasks under "JobSpy" in the summary
+            summary_key = "JobSpy" if name.startswith("JobSpy:") else name
+            per_source[summary_key] += len(jobs)
             all_jobs.extend(jobs)
 
     logger.info("Total raw jobs collected: %d", len(all_jobs))
@@ -192,7 +176,7 @@ def run() -> None:
     supabase.upsert_jobs(scored_jobs)
 
     # ── Step 7: Google Sheets ─────────────────────────────────────────────────
-    high_score = [j for j in scored_jobs if j.get("score", 0) >= config.ALERT_SCORE_THRESHOLD]
+    high_score   = [j for j in scored_jobs if j.get("score", 0) >= config.ALERT_SCORE_THRESHOLD]
     rows_written = SheetsSync().sync(high_score)
     logger.info("Google Sheets: %d rows written", rows_written)
 
@@ -211,7 +195,7 @@ def run() -> None:
         logger.info("Scraping LinkedIn posts …")
         posts = LinkedInPostsScraper().scrape()
         supabase.upsert_posts(posts)
-        logger.info("LinkedIn Posts: %d new posts pushed to Supabase", len(posts))
+        logger.info("LinkedIn Posts: %d posts pushed to Supabase", len(posts))
 
     db.close()
 
@@ -220,17 +204,17 @@ def run() -> None:
     print(f"\n{'='*65}")
     print("  JOB SCRAPER SUMMARY")
     print(f"{'='*65}")
-    print(f"  {'Source':<20} {'Jobs':>6}")
-    print(f"  {'-'*20} {'-'*6}")
+    print(f"  {'Source':<22} {'Jobs':>6}")
+    print(f"  {'-'*22} {'-'*6}")
     for name, count in sorted(per_source.items()):
-        print(f"  {name:<20} {count:>6}")
-    print(f"  {'-'*20} {'-'*6}")
-    print(f"  {'TOTAL RAW':<20} {len(all_jobs):>6}")
-    print(f"  {'After dedup':<20} {len(unique_jobs):>6}")
-    print(f"  {'After filter':<20} {len(filtered_jobs):>6}")
-    print(f"  {'New in SQLite':<20} {new_count:>6}")
-    print(f"  {'Sheets rows':<20} {rows_written:>6}")
-    print(f"  {'LinkedIn Posts':<20} {len(posts):>6}")
+        print(f"  {name:<22} {count:>6}")
+    print(f"  {'-'*22} {'-'*6}")
+    print(f"  {'TOTAL RAW':<22} {len(all_jobs):>6}")
+    print(f"  {'After dedup':<22} {len(unique_jobs):>6}")
+    print(f"  {'After filter':<22} {len(filtered_jobs):>6}")
+    print(f"  {'New in SQLite':<22} {new_count:>6}")
+    print(f"  {'Sheets rows':<22} {rows_written:>6}")
+    print(f"  {'LinkedIn Posts':<22} {len(posts):>6}")
     print()
     print(f"  TOP 10 JOBS:")
     print(f"  {'Sc':>3} {'LLM':>3}  {'Title':<35} {'Company':<20} {'Type':<10}")

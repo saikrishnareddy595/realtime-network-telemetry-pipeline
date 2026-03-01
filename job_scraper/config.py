@@ -55,10 +55,32 @@ ROLE_CATEGORIES = {
     ],
 }
 
-# Flat list of all job titles to search (used by scrapers)
+# Flat list of all job titles (used by Dice, Jooble, etc.)
 JOB_TITLES: list = []
 for titles in ROLE_CATEGORIES.values():
     JOB_TITLES.extend(titles)
+
+# Reduced list for JobSpy (LinkedIn) — each title takes ~1 min, run in parallel.
+# Keep one representative per role cluster to avoid duplicate results and stay
+# well within the 60-min workflow timeout.
+JOBSPY_TITLES: list = [
+    # Data Engineering
+    "Data Engineer",
+    "ETL Engineer",
+    "Analytics Engineer",
+    # AI / Generative AI
+    "AI Engineer",
+    "LLM Engineer",
+    "Generative AI Engineer",
+    # ML / MLOps
+    "Machine Learning Engineer",
+    "MLOps Engineer",
+    # NLP / CV
+    "NLP Engineer",
+    "Computer Vision Engineer",
+    # Data Science
+    "Data Scientist",
+]
 
 # ── Search Parameters ──────────────────────────────────────────────────────────
 LOCATIONS = ["United States", "Remote USA", "Remote"]
