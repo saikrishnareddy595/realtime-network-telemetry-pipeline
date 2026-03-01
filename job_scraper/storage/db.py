@@ -69,7 +69,6 @@ class Database:
         preserves 'notified', 'applied', 'saved', and 'notes'.
         """
         conn = self._connect()
-        new_count = 0
         for job in jobs:
             try:
                 posted = job.get("posted_date")
@@ -82,7 +81,7 @@ class Database:
                 skills_json = json.dumps(job.get("skills", []))
 
                 # Use ON CONFLICT to update metadata but preserve user state
-                cur = conn.execute(
+                conn.execute(
                     """
                     INSERT INTO jobs (
                         title, company, location, salary, url, source, score,
@@ -104,12 +103,12 @@ class Database:
                         scraped_at    = excluded.scraped_at
                     """,
                     (
-                        job.get("title", ""),
-                        job.get("company", ""),
-                        job.get("location", ""),
+                        self._str(job.get("title", "")),
+                        self._str(job.get("company", "")),
+                        self._str(job.get("location", "")),
                         job.get("salary"),
                         job.get("url", ""),
-                        job.get("source", ""),
+                        self._str(job.get("source", "")),
                         job.get("score", 0),
                         job.get("llm_score"),
                         job.get("llm_reason"),
@@ -118,27 +117,16 @@ class Database:
                         easy_int,
                         job.get("applicants"),
                         job.get("description", ""),
-                        job.get("job_type", "full_time"),
-                        job.get("role_category", "data_engineer"),
+                        self._str(job.get("job_type", "full_time")),
+                        self._str(job.get("role_category", "data_engineer")),
                         skills_json,
                         datetime.now(timezone.utc).isoformat(),
                     ),
                 )
-                if cur.rowcount > 0 and cur.lastrowid is not None:
-                    # SQLite rowcount > 0 for updates too, but we want to know if it's new
-                    # Actually rowcount tells us how many rows were affected.
-                    # We can use a more precise way to count 'new' if needed.
-                    pass
-                
-                # Check if it was an insert or update
-                # In SQLite, if it's an update, rowcount is 1.
-                # To distinguish, we'd need to check changes() or similar.
-                # For now, let's just count total processed.
             except Exception as exc:
                 logger.warning("DB upsert error for '%s': %s", job.get("title"), exc)
 
         conn.commit()
-        # We'll just return the count of successfully processed jobs for now
         return len(jobs)
 
     def get_unnotified(self, min_score: int = 0) -> List[Dict[str, Any]]:
@@ -157,7 +145,14 @@ class Database:
         conn.execute(f"UPDATE jobs SET notified=1 WHERE id IN ({placeholders})", ids)
         conn.commit()
 
+    @staticmethod
+    def _str(val: Any) -> str:
+        if val is None: return ""
+        if isinstance(val, list): return ", ".join(str(v) for v in val)
+        return str(val)
+
     def _row_to_dict(self, row: sqlite3.Row) -> Dict[str, Any]:
+
         d = dict(row)
         if d.get("skills"):
             try:

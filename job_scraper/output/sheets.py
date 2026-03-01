@@ -117,15 +117,15 @@ class SheetsSync:
             easy_str = "Yes" if easy else ("No" if easy is False else "Unknown")
 
             row = [
-                job.get("title", ""),
-                job.get("company", ""),
-                job.get("location", ""),
+                self._str(job.get("title", "")),
+                self._str(job.get("company", "")),
+                self._str(job.get("location", "")),
                 salary_str,
                 job.get("score", 0),
-                job.get("source", ""),
+                self._str(job.get("source", "")),
                 str(posted),
                 easy_str,
-                job.get("applicants") or "N/A",
+                str(job.get("applicants") or "N/A"),
                 url,
             ]
             new_rows.append(row)
@@ -140,3 +140,11 @@ class SheetsSync:
                 return 0
 
         return len(new_rows)
+
+    @staticmethod
+    def _str(val: Any) -> str:
+        if val is None: return ""
+        if isinstance(val, list): return ", ".join(str(v) for v in val)
+        return str(val)
+
+

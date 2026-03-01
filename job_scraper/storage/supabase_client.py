@@ -130,18 +130,17 @@ class SupabaseClient:
             return 0
 
     # ── Helpers ───────────────────────────────────────────────────────────────
-    @staticmethod
-    def _job_to_row(j: Dict[str, Any]) -> Dict[str, Any]:
+    def _job_to_row(self, j: Dict[str, Any]) -> Dict[str, Any]:
         posted = j.get("posted_date")
         if isinstance(posted, datetime):
             posted = posted.isoformat()
         return {
-            "title":        j.get("title", ""),
-            "company":      j.get("company", ""),
-            "location":     j.get("location", ""),
+            "title":        self._str(j.get("title", "")),
+            "company":      self._str(j.get("company", "")),
+            "location":     self._str(j.get("location", "")),
             "salary":       j.get("salary"),
             "url":          j.get("url", ""),
-            "source":       j.get("source", ""),
+            "source":       self._str(j.get("source", "")),
             "score":        j.get("score", 0),
             "llm_score":    j.get("llm_score"),
             "llm_reason":   j.get("llm_reason"),
@@ -150,32 +149,35 @@ class SupabaseClient:
             "easy_apply":   j.get("easy_apply"),
             "applicants":   j.get("applicants"),
             "description":  j.get("description", ""),
-            "job_type":     j.get("job_type", "full_time"),
-            "role_category": j.get("role_category", "data_engineer"),
+            "job_type":     self._str(j.get("job_type", "full_time")),
+            "role_category": self._str(j.get("role_category", "data_engineer")),
             "skills":       j.get("skills", []),
-            "scraped_at":   datetime.now(timezone.utc).isoformat(),
         }
 
-    @staticmethod
-    def _post_to_row(p: Dict[str, Any]) -> Dict[str, Any]:
+    def _post_to_row(self, p: Dict[str, Any]) -> Dict[str, Any]:
         posted = p.get("posted_date")
         if isinstance(posted, datetime):
             posted = posted.isoformat()
         return {
             "post_text":           p.get("post_text", ""),
-            "author_name":         p.get("author_name", ""),
-            "author_headline":     p.get("author_headline", ""),
+            "author_name":         self._str(p.get("author_name", "")),
+            "author_headline":     self._str(p.get("author_headline", "")),
             "author_profile_url":  p.get("author_profile_url", ""),
-            "extracted_title":     p.get("extracted_title", ""),
-            "extracted_company":   p.get("extracted_company", ""),
+            "extracted_title":     self._str(p.get("extracted_title", "")),
+            "extracted_company":   self._str(p.get("extracted_company", "")),
             "contact_email":       p.get("contact_email", ""),
             "contact_linkedin":    p.get("contact_linkedin", ""),
-            "contact_name":        p.get("contact_name", ""),
+            "contact_name":        self._str(p.get("contact_name", "")),
             "post_url":            p.get("post_url", ""),
             "posted_date":         posted,
-            "scraped_at":          datetime.now(timezone.utc).isoformat(),
             "is_job_posting":      p.get("is_job_posting", True),
             "score":               p.get("score", 0),
-            "role_category":       p.get("role_category", "data_engineer"),
+            "role_category":       self._str(p.get("role_category", "data_engineer")),
         }
+
+    @staticmethod
+    def _str(val: Any) -> str:
+        if val is None: return ""
+        if isinstance(val, list): return ", ".join(str(v) for v in val)
+        return str(val)
 

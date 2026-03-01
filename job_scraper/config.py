@@ -137,7 +137,7 @@ SUPABASE_SERVICE_KEY = os.getenv("SUPABASE_SERVICE_KEY", "")
 
 # ── NVIDIA NIM ─────────────────────────────────────────────────────────────────
 NVIDIA_API_KEY       = os.getenv("NVIDIA_API_KEY", "")
-NVIDIA_BASE_URL      = "https://integrate.api.nvidia.com/v1"
+NVIDIA_BASE_URL      = "https://ai.api.nvidia.com/v1"
 NVIDIA_CHAT_MODEL    = "nvidia/llama-3.1-8b-instruct"
 NVIDIA_EMBED_MODEL   = "nvidia/nv-embedqa-e5-v5"
 LLM_ENABLED          = bool(NVIDIA_API_KEY)   # auto-disable if no key

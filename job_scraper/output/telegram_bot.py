@@ -195,6 +195,13 @@ class TelegramBot:
         """Send a MarkdownV2 message with retry logic."""
         if not self._enabled:
             return False
+        
+        # Basic validation: bot tokens contain a colon
+        if ":" not in self._token:
+            logger.error("Telegram: Invalid Bot Token format (missing ':'). Check your secrets.")
+            self._enabled = False
+            return False
+
         url = f"{_BASE}{self._token}/sendMessage"
         payload = {
             "chat_id": self._chat_id,
@@ -208,17 +215,26 @@ class TelegramBot:
                 data = resp.json()
                 if data.get("ok"):
                     return True
+                
+                # Handle 404 specially as it indicates a bad token
+                if resp.status_code == 404:
+                    logger.error("Telegram: Bot API returned 404. This usually means your TELEGRAM_BOT_TOKEN is incorrect.")
+                    self._enabled = False
+                    return False
+
                 # Telegram often rejects bad MarkdownV2; fall back to plain text
                 if "can't parse" in str(data.get("description", "")).lower():
                     payload["parse_mode"] = "HTML"
                     payload["text"] = self._strip_markdown(text)
                     continue
+                
                 logger.warning("Telegram API error (attempt %d): %s", attempt, data)
             except requests.RequestException as exc:
                 logger.warning("Telegram send failed (attempt %d): %s", attempt, exc)
             if attempt < _MAX_RETRIES:
                 time.sleep(_RETRY_DELAY * attempt)
         return False
+
 
     # ── Helpers ───────────────────────────────────────────────────────────────
 
